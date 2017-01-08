@@ -1,0 +1,79 @@
+'''
+Created at Feb 15th
+Modified on Feb 22nd
+'''
+import numpy as np
+import matplotlib.pyplot as plt
+
+from sklearn.cluster import KMeans
+import pytz
+import csv
+from pymongo.mongo_client import MongoClient
+import time,datetime,pymongo
+
+
+from math import radians, cos, sin, asin, sqrt, ceil
+
+class Kmeans:
+    
+    def __init__(self):
+        self.mongo_client = MongoClient('localhost', 27017)
+        self.mongo_db = self.mongo_client['taxi']
+        self.mongo_train = self.mongo_db['160_daytype_A_calltype_A']
+        
+    def kmeans(self):
+        number=0
+        X=[]
+        Y=[]
+        Z=[]
+        random_state = 170
+        for tup in self.mongo_train.find({"$or":[{'TIME.month':11},{'TIME.month':12}]}):    
+            number=number+1
+            if number%1000==0:
+                print (number)
+                if number == 10000:
+                    print tup['TIME']
+                    break
+            #for count in range(0,len(tup["POLY"])-1):
+            try:
+                if len(tup['POLYLINE'])/4 < 8:
+                    continue
+                #for coordinates in tup["POLY"]:
+                #    X.append([float(coordinates[0]),float(coordinates[1]) ])
+                X.append([ tup['POLYLINE'][0][0],tup['POLYLINE'][0][1] ])
+                Y.append([ tup['POLYLINE'][-1][0],tup['POLYLINE'][-1][1] ])
+
+            except:
+                print (len(tup["POLYLINE"]))
+                #time.sleep(2)
+        #print X
+        print (type(X))
+        #X = StandardScaler().fit_transform(X)
+        X=np.array(X)
+        print "S"
+        #print X
+        print len(Z)
+        print (len(X))
+        ##############################################################################
+        # Compute Kmeans
+        
+        x_pred = KMeans(n_clusters=300, random_state=random_state).fit(X)
+
+        #plt.scatter(Z[:, 0], Z[:, 1], c=z_pred.labels_)
+        #plt.title("K-means clustering of transition points for Sept & Oct")
+        #plt.savefig("Sept_oct_kmeans_trans.png")
+        
+        #print len(y_pred.cluster_centers_)
+        #print len(X[:,0])
+        
+        
+        f1 = open('K_start.txt','w')
+        #print len(x_pred.cluster_centers_)
+        for each in range(0,len(x_pred.cluster_centers_)):
+            f1.write( str(x_pred.cluster_centers_[each][0])+"\t"+str(x_pred.cluster_centers_[each][1]) +'\n')
+            #f2.write( str(y_pred.cluster_centers_[each]) +'\n')
+        
+        
+if __name__ == '__main__':
+    cot = Kmeans()
+    cot.kmeans()

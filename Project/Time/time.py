@@ -1,0 +1,34 @@
+'''
+Created at Apr 12th
+'''
+import pytz
+import csv
+from pymongo.mongo_client import MongoClient
+import time,datetime,pymongo
+import json
+import matplotlib.pyplot as plt
+class Convert:
+    
+    def __init__(self):
+        self.mongo_client = MongoClient('localhost', 27017)
+        self.mongo_db = self.mongo_client['taxi']
+        self.mongo_test = self.mongo_db['test']
+        self.mongo_train = self.mongo_db['daytype_B']
+
+    def time_segregation(self):
+        time_array = [0]*24
+        for tup in self.mongo_train.find():
+            time_array[tup["TIME"]["hour"]]+=1
+        print time_array
+        N = len(time_array)
+        x= range(N)
+        width =1/1.5
+        plt.bar(x,time_array,width,color = "blue")
+        plt.xlabel('Hour')
+        plt.ylabel('Number of trips')
+        plt.savefig("time_segregation.png",dpi = 1000)
+        plt.show()
+        
+if __name__ == '__main__':
+    cot = Convert()
+    cot.time_segregation()

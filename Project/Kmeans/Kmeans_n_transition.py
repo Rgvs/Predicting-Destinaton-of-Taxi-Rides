@@ -1,0 +1,106 @@
+'''
+Created at Feb 15th
+Modified on Feb 22nd
+'''
+import numpy as np
+import matplotlib.pyplot as plt
+
+from sklearn.cluster import KMeans
+import pytz
+import csv
+from pymongo.mongo_client import MongoClient
+import time,datetime,pymongo
+
+
+from math import radians, cos, sin, asin, sqrt, ceil
+
+class Kmeans:
+    
+    def __init__(self):
+        self.mongo_client = MongoClient('localhost', 27017)
+        self.mongo_db = self.mongo_client['taxi']
+        self.mongo_train = self.mongo_db['calltype_A']
+        
+    def kmeans(self):
+        number=0
+        X=[]
+        Y=[]
+        Z=[]
+        sZ=[0]
+        Z1=[]
+        random_state = 170
+        for tup in self.mongo_train.find({ "$and": [{"$or":[{'TIME.month':7},{'TIME.month':8},{'TIME.month':9}]} , {"DIRTY":0}]}):    
+            number=number+1
+            if number%5000==0:
+                print (number)
+                #if number == 10000:
+                #    print tup['TIME']
+                #break
+            #for count in range(0,len(tup["POLY"])-1):
+            try:
+                if len(tup['POLYLINE'])/4 < 5:
+                    continue
+                #for coordinates in tup["POLY"]:
+                #    X.append([float(coordinates[0]),float(coordinates[1]) ])
+                X.append([ tup['POLYLINE'][0][0],tup['POLYLINE'][0][1] ])
+                Y.append([ tup['POLYLINE'][-1][0],tup['POLYLINE'][-1][1] ])
+                count=0
+                for coordinates in tup['POLYLINE'][1:-1]:
+                    count+=1
+                    if count%4==0:
+                        Z.append([ coordinates[0],coordinates[1] ])
+                    Z1.append([ coordinates[0],coordinates[1] ])
+                sZ.append(len(Z1)-sum(sZ))
+            except:
+                print (len(tup["POLYLINE"]))
+                #time.sleep(2)
+        #print X
+        print (type(X))
+        #X = StandardScaler().fit_transform(X)
+        X=np.array(X)
+        Y=np.array(Y)
+        Z=np.array(Z)
+        Z1=np.array(Z1)
+        #print X
+        print len(Z)
+        print (len(X))
+        ##############################################################################
+        # Compute Kmeans
+        
+        x_pred = KMeans(n_clusters=250, random_state=random_state).fit(X)
+        y_pred = KMeans(n_clusters=250, random_state=random_state).fit(Y)
+        
+        z_pred = KMeans(n_clusters=500, random_state=random_state).fit(Z)
+        #z1_pred = z_pred.predict(Z1)
+        #plt.scatter(Z[:, 0], Z[:, 1], c=z_pred.labels_)
+        #plt.title("K-means clustering of transition points for Sept & Oct")
+        #plt.savefig("Sept_oct_kmeans_trans.png")
+        
+        #print len(y_pred.cluster_centers_)
+        #print len(X[:,0])
+        #print len(z1_pred),z1_pred[:16]
+        #print len(z_pred.labels_),z_pred.labels_[:16]
+        
+        #f = open('start_n_transition_end_Kaggle.txt','w')
+        #for count in range(0,len(X)):
+        #    f.write(str(x_pred.labels_[count])+'\t')
+        #    sum_sZ=sum(sZ[0:count])
+        #    for each in range(0,sZ[count+1]):
+        #        f.write( str(z1_pred[sum_sZ+each]) +'\t')
+        #    f.write( str(y_pred.labels_[count])+'\n')
+        f1 = open('K_start_Kaggle_CA.txt','w')
+        f2 = open('K_end_Kaggle_CA.txt','w')
+        f3 = open('K_transition_Kaggle_CA.txt','w')
+        #print len(x_pred.cluster_centers_)
+        for each in range(0,len(x_pred.cluster_centers_)):
+            f1.write( str(x_pred.cluster_centers_[each][0])+"\t"+str(x_pred.cluster_centers_[each][1]) +'\n')
+        for each in range(0,len(y_pred.cluster_centers_)):    
+            f2.write( str(y_pred.cluster_centers_[each][0])+"\t"+str(y_pred.cluster_centers_[each][1]) +'\n')
+        for each in range(0,len(z_pred.cluster_centers_)):
+            f3.write( str(z_pred.cluster_centers_[each][0])+"\t"+str(z_pred.cluster_centers_[each][1]) +'\n')
+            #print x_pred.cluster_centers_[each]
+        
+        
+if __name__ == '__main__':
+    cot = Kmeans()
+    cot.kmeans()

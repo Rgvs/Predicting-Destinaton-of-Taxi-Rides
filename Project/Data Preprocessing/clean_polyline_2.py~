@@ -1,0 +1,141 @@
+'''
+Created at Feb 29th
+'''
+import pytz
+import csv
+from pymongo.mongo_client import MongoClient
+import time,datetime,pymongo
+import json
+from math import radians, cos, sin, asin, sqrt, ceil
+holidays=[[15,8,2013], [8,12,2013], [25,12,2013], [1,1,2014], [18,4,2014], [20,4,2014], [25,4,2014], [1,5,2014], [10,6,2014], [15,8,2014], [8,12,2014], [25,12,2014]]
+preholidays=[[14,8,2013] ,[7,12,2013] ,[24,12,2013] ,[31,12,2013] ,[17,4,2014] ,[19,4,2014] ,[24,4,2014] ,[30,4,2014] ,[9,6,2014],[14,8,2014],[7,12,2014],[24,12,2014]]
+class Clean:
+
+    def __init__(self):
+        self.mongo_client = MongoClient('localhost', 27017)
+        self.mongo_db = self.mongo_client['taxi']
+        self.mongo_test = self.mongo_db['test']
+        self.mongo_train = self.mongo_db['train']
+        self.mongo_trainH = self.mongo_db['cleantrain_160mts_2km']
+        self.mongo_testA = self.mongo_db['cleantrainholidays_1min_daytype_A']
+        self.mongo_testB = self.mongo_db['cleantrainholidays_1min_daytype_B']
+        self.mongo_testC = self.mongo_db['cleantrainholidays_1min_daytype_C']
+        self.mongo_testD = self.mongo_db['cleantrainholidays_1min_daytype_D'] 
+    
+    def mainclean(self):
+        number=0
+        for tup in self.mongo_train.find():
+            tup['TIME']=self.timefix(tup['TIMESTAMP'])
+            tup['POLYLINE']=self.polyfix(tup['POLYLINE'])
+            tup['DAY_TYPE']=self.dayfix(tup['TIME'])
+            tup['POLYLINE']=self.clean(tup['POLYLINE'])
+            if number%1000 == 0:
+                print number
+                #if number == 10000:
+                #    break
+            number+=1
+            self.mongo_trainH.insert(tup)
+    
+    def timefix(self,timestamp):
+        dt=datetime.datetime.fromtimestamp(timestamp)
+        localtz = pytz.timezone('GMT')
+        dt = localtz.localize(dt)
+        tup={}
+        tup['weekday']=dt.isoweekday()
+        tup['dayofmonth']=dt.day
+        tup['month']=dt.month
+        tup['year']=dt.year
+        tup['hour']=dt.hour
+        tup['min']=dt.minute
+        tup['sec']=dt.second
+        tup['dayofyear']=dt.strftime('%j')
+        
+        return tup
+        #print tup['POLYLINE']
+    def polyfix(self,polyline):
+        tup=(polyline[1:-1]).split("],[")
+        fix_tup=[]
+        for pair in tup[1:-1]:
+            y=(pair.split(","))
+            y[0]=float(y[0])
+            y[1]=float(y[1])
+            fix_tup.append(y)
+        #print tup["POLY"]
+        return fix_tup
+    
+    def dayfix(self,time):
+        for date in holidays:
+            check_date=time
+            if (check_date["dayofmonth"]==date[0] and check_date["month"]==date[1] and check_date["year"]==date[2]):
+                 return "C"
+        for date in preholidays:
+            check_date=time
+            if (check_date["dayofmonth"]==date[0] and check_date["month"]==date[1] and check_date["year"]==date[2]):
+                 return "B"
+        if time["weekday"]==6 or time["weekday"]==7 :
+            return "D"
+        return "A"
+    
+    def clean(self,polyline):
+        new_gps=[]
+        try:
+            new_gps.append([polyline[0][0],polyline[0][1],1])
+            for count in range( 0, len(polyline) -1):
+                pre=polyline[count]
+                nex=polyline[count+1]
+                distance= self.haversine(pre[1],pre[0],nex[1],nex[0])
+                if distance > 160 :
+                    k= ceil(distance/160) - 1
+                    for x in range(1,int(k)+1):
+                        x=x+0.0
+                        new_gps.append([pre[0]-(pre[0]-nex[0])*x/(k+1),pre[1]-(pre[1]-nex[1])*x/(k+1),0]) #lat ,long, added
+                        #print (pre[0]-nex[0])*x/(k+1),pre[0],nex[0],x,k
+                new_gps.append([nex[0],nex[1],1]) #lat,long,original
+            gps=[]
+            gps.append(new_gps[0])
+            i=0
+            while i < len(new_gps)-1 :
+                distance = self.haversine(new_gps[i][1],new_gps[i][0],new_gps[i+1][1],new_gps[i+1][0])
+                #print distance,"0",i
+                j=1
+                while distance <100 and i+j+1 < len(new_gps):
+                    j+=1
+                    
+                    distance = self.haversine(new_gps[i][1],new_gps[i][0],new_gps[i+j][1],new_gps[i+j][0])
+                    #print distance,"1",i,j
+                    if distance>160:
+                        j-=1
+                
+                if i+j >=len(new_gps):
+                    gps.append(new_gps[-1])
+                else :
+                    gps.append(new_gps[i+j])
+                i+=j
+            #if len(gps)!=len(new_gps):
+            #    print len(gps),len(new_gps)
+            return gps
+            
+        except:
+            print "Len",len(polyline)
+            return []
+            
+    def haversine(self,lon1, lat1, lon2, lat2):
+        """
+        Calculate the great circle distance between two points 
+        on the earth (specified in decimal degrees)
+        """
+        # convert decimal degrees to radians 
+        lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+        # haversine formula 
+        dlon = lon2 - lon1 
+        dlat = lat2 - lat1 
+        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        c = 2 * asin(sqrt(a)) 
+        km = 6367 * c
+        return km*1000
+
+
+           
+if __name__ == '__main__':
+    cot = Clean()
+    cot.mainclean()

@@ -1,0 +1,31 @@
+'''
+Created at Apr 12th
+'''
+import pytz
+import csv
+from pymongo.mongo_client import MongoClient
+import time,datetime,pymongo
+import json
+import matplotlib.pyplot as plt
+class Convert:
+    
+    def __init__(self):
+        self.mongo_client = MongoClient('localhost', 27017)
+        self.mongo_db = self.mongo_client['taxi']
+        self.mongo_test = self.mongo_db['test']
+        self.mongo_train = self.mongo_db['daytype_C']
+
+    def time_segregation(self):
+        cnt=0.0
+        add=0.0
+        for tup in self.mongo_train.find():
+            add+= len(tup["POLYLINE"])
+            cnt+=1.0
+            if cnt==10000:
+                break
+        add=add/cnt
+        print add
+        
+if __name__ == '__main__':
+    cot = Convert()
+    cot.time_segregation()
